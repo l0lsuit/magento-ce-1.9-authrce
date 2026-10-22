@@ -1,0 +1,35 @@
+# Magento CE <= 1.9.0.1 - Authenticated Remote Code Execution
+# -----------------------------------------------------------
+# Python 3 port of Ebrietas0's 2015 PoC (originally EDB 37811).
+#
+# Original author : @Ebrietas0  (http://ebrietas0.blogspot.com)
+# Py3 port + notes : l0lsuit
+#
+# WHAT THIS IS
+#   The Magento admin "dashboard tunnel" (Google-graph image proxy) passes a
+#   base64 `ga` parameter straight into PHP unserialize(). This script sends a
+#   hand-built PHP object-injection POP chain:
+#
+#       Zend_Log -> Zend_Log_Writer_Mail -> Zend_Config_Writer_Yaml -> Varien_Object
+#
+#   On destruct the chain pivots into call_user_func(), letting us call an
+#   arbitrary single-arg PHP function (system) with our command. It is the same
+#   *class* of bug as any insecure-deserialization RCE: attacker data reaches a
+#   gadget chain that ends in code execution.
+#
+# WHY A PORT WAS NEEDED (notes kept for anyone fixing the next 2015-era PoC)
+#   * mechanize is a dead Py2 lib -> replaced with requests.Session()
+#   * base64.b64encode / hashlib.md5 need BYTES in py3 -> .encode()/.decode()
+#   * regex literals -> raw strings to kill SyntaxWarning on '\?'
+#   * INSTALL_DATE must match /app/etc/local.xml EXACTLY (byte-for-byte): the
+#     tunnel validates h = md5(base64(payload) + install_date). Wrong date =
+#     silent failure.
+#   * TARGET must be the admin path (…/index.php/admin), NOT the storefront
+#     root, or you authenticate against the shop frontend and never see the
+#     dashboard (no ajaxBlockUrl -> the first regex returns None).
+#
+# USAGE
+#   python3 magento_1.9_authrce.py <admin_url> "<command>"
+#   python3 magento_1.9_authrce.py http://target/index.php/admin "id"
+#
+#   Fill in USERNAME / PASSWORD (an admin you control) and INSTALL_DATE below.
